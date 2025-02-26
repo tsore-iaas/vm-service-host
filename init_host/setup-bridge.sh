@@ -41,5 +41,11 @@ echo "Demande d'une adresse IP pour le pont..."
 #ip addr add 192.168.8.1/24  dev "$BRIDGE_NAME"
 dhclient "$BRIDGE_NAME"
 
+sysctl -w net.ipv4.ip_forward=1
+
+# Add a firewall rule to allow traffic to be routed to the guest:
+sudo iptables -t nat -A POSTROUTING -o "$BRIDGE_NAME" -j MASQUERADE
+iptables --insert FORWARD --in-interface "$BRIDGE_NAME" -j ACCEPT
+
 echo "Configuration terminée !"
 echo "Le pont $BRIDGE_NAME a été créé et configuré avec l'interface $INTERFACE"
