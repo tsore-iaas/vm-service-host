@@ -73,5 +73,7 @@ Lancez ensuite le programme en mode root :
 
 ```sh
 cd app
-sudo -E univcorn main:app
+sudo env "PATH=$PATH" uvicorn main:app
 ```
+
+https://cloud-images.ubuntu.com/minimal/daily/noble/current/noble-minimal-cloudimg-amd64.squashfs

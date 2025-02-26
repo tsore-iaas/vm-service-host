@@ -18,9 +18,9 @@ cleanup() {
 }
 
 # Vérification des arguments
-if [ "$#" -ne 7 ]; then
-    echo "Usage: $0 <squashfs_input> <ext4_output> <disk_size> <ip_address> <gateway> <hostname> <ssh_key>"
-    echo "Example: $0 ubuntu-24.04.squashfs.upstream ubuntu-24.04.ext4 400M 192.168.8.200/24 192.168.8.1 my-ubuntu 'ssh-rsa AAAA...'"
+if [ "$#" -ne 8 ]; then
+    echo "Usage: $0 <squashfs_input> <ext4_output> <disk_size> <ip_address> <gateway> <hostname> <ssh_key> <password>"
+    echo "Example: $0 ubuntu-24.04.squashfs.upstream ubuntu-24.04.ext4 400M 192.168.8.200/24 192.168.8.1 my-ubuntu 'ssh-rsa AAAA...' 'rootpassword'"
     exit 1
 fi
 
@@ -32,6 +32,7 @@ IP_ADDRESS="$4"
 GATEWAY="$5"
 HOSTNAME="$6"
 SSH_KEY="$7"
+PASSWORD="$8"
 
 # Vérification du fichier squashfs
 if [ ! -f "$SQUASHFS_INPUT" ]; then
@@ -63,6 +64,20 @@ echo "$SSH_KEY" > "$WORK_DIR/squashfs-root/root/.ssh/authorized_keys"
 chmod 700 "$WORK_DIR/squashfs-root/root/.ssh"
 chmod 600 "$WORK_DIR/squashfs-root/root/.ssh/authorized_keys"
 
+# Activer l'authentification par mot de passe et la connexion root
+sed -i 's/^#\?PasswordAuthentication .*/PasswordAuthentication yes/' "$WORK_DIR/squashfs-root/etc/ssh/sshd_config"
+sed -i 's/^#\?PermitRootLogin .*/PermitRootLogin yes/' "$WORK_DIR/squashfs-root/etc/ssh/sshd_config"
+
+# Activer SSH au démarrage
+chroot "$WORK_DIR/squashfs-root" systemctl enable ssh
+
+# Définir le mot de passe root
+echo "root:$PASSWORD" | chroot "$WORK_DIR/squashfs-root" /bin/bash -c 'chpasswd'
+
+# Redémarrer le service SSH pour appliquer les changements
+chroot "$WORK_DIR/squashfs-root" systemctl restart ssh || chroot "$WORK_DIR/squashfs-root" service ssh restart
+
+
 # Création du script rc.local pour la configuration réseau au démarrage
 echo "Configuration du script de démarrage réseau..."
 cat > "$WORK_DIR/squashfs-root/etc/rc.local" << EOF
@@ -83,7 +98,7 @@ ln -sf /lib/systemd/system/rc-local.service "$WORK_DIR/squashfs-root/etc/systemd
 
 # Configuration DNS
 echo "Configuration DNS..."
-cat > "$WORK_DIR/squashfs-root/etc/resolv.conf" << EOF
+cat >> "$WORK_DIR/squashfs-root/etc/resolv.conf" << EOF
 nameserver 8.8.8.8
 nameserver $GATEWAY
 EOF
@@ -101,6 +116,7 @@ echo "Création de l'image ext4..."
 truncate -s "$DISK_SIZE" "$EXT4_OUTPUT"
 mkfs.ext4 -d "$WORK_DIR/squashfs-root" -F "$EXT4_OUTPUT"
 echo "Debug: Output file is $EXT4_OUTPUT" >> debug.log
+
 # Changement des propriétaires de l'image
 echo "Attribution des droits à l'utilisateur $REAL_USER..."
 chown "$REAL_USER_ID":"$REAL_GROUP_ID" "$EXT4_OUTPUT"

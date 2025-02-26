@@ -5,7 +5,7 @@ from sqlmodel import Field, Session, SQLModel, create_engine, select, Relationsh
 from typing import Annotated, Optional
 from pydantic import BaseModel
 
-import os, shutil, subprocess, paramiko, io, json, time
+import os, shutil, subprocess, paramiko, io, json, time, requests
 
 # Models
 #class VMIface(SQLModel, table=True):
@@ -30,6 +30,12 @@ class VM(SQLModel, table=True):
   iface_net: str
   # Relation un-à-plusieurs avec VMIface
   #vms_iface: list[VMIface] = Relationship(back_populates="vm")
+
+#Cette table va contenir les liens vers les fichiers rootfs téléchargé sur le host
+class Rootfs(SQLModel, table=True):
+  id: int = Field(primary_key=True)
+  rootfs_base_path_on_host: str
+  rootfs_url: str
 
 # Database setup
 DATABASE_URL = "sqlite:///./vm.db"
@@ -84,6 +90,19 @@ class VMRequirements(BaseModel):
   password: str  # Correction de l'orthographe : "password"
   kernel_base_path: str
   rootfs_base_path: str
+
+#Cette classe va permettre de contenirs les informations necessaire au téléchargement d'un fichiers rootfs
+class RootfsRequirements(BaseModel):
+  rootfs_base_path_on_host: str
+  rootfs_url: str
+
+#Ce model sera retourné lors du téléchargement d'une vm pour dire si cela à été fait avec succès ou pas
+class RootfsDownloadResponse(BaseModel):
+  rootfs_base_path_on_host: str
+  rootfs_url: str
+  downloaded : bool
+  message : str
+
 
 TMP_DIR = "/tmp/firecracker_sockets"
 BASE_DIR = "/tmp/vms"
@@ -175,7 +194,8 @@ def create_vm(vm_requirements: VMRequirements, session: SessionDep) -> VMConfig:
                   vm_requirements.ip_address, # 192.168.5.8/24
                   GATEWAY_ADDRESS,
                   vm_requirements.name,
-                  public_key_str],
+                  public_key_str,
+                  vm_requirements.password],
       check=True,  # Lève une exception si le code de retour n'est pas 0
       stdout=subprocess.PIPE,
       stderr=subprocess.PIPE,
@@ -269,3 +289,54 @@ def delete_vm(id: int, session: SessionDep) -> VM:
   session.commit()
   return vm
 
+@app.post("/download/vm")
+def download_vm(rootfs_requirements: list[RootfsRequirements], session: SessionDep) -> list[RootfsDownloadResponse]:
+    # Initialisation de la liste vide pour stocker les résultats du téléchargement
+    rootfs_download_list = []
+    
+    for rootfs in rootfs_requirements:
+        # Construction du chemin où le rootfs sera sauvegardé
+        rootfs_path = os.path.join(rootfs.rootfs_base_path_on_host)
+        print(f"[DEBUG] Rootfs path : {rootfs_path}")
+        
+        # Demande HTTP pour télécharger le fichier
+        try:
+          response = requests.get(rootfs.rootfs_url)
+        except ConnectionError as e:
+           rootfs_download_list.append(RootfsDownloadResponse(
+              rootfs_base_path_on_host=rootfs_path, 
+              rootfs_url=rootfs.rootfs_url, 
+              downloaded=False, 
+              message=f"Rootfs download failed : {e}"
+           ))
+           continue
+
+        if response.status_code == 200:
+            # Si le téléchargement réussit, on l'enregistre dans un fichier
+            with open(rootfs_path, "wb") as f:
+                f.write(response.content)
+            print("[DEBUG] Rootfs downloaded")
+            
+            # Enregistrer l'entrée dans la base de données
+            rootfsSave = Rootfs(rootfs_base_path_on_host=rootfs_path, rootfs_url=rootfs.rootfs_url)
+            session.add(rootfsSave)
+            session.commit()
+            
+            # Ajouter un objet RootfsDownloadResponse à la liste des téléchargements réussis
+            rootfs_download_list.append(RootfsDownloadResponse(
+                rootfs_base_path_on_host=rootfs_path, 
+                rootfs_url=rootfs.rootfs_url, 
+                downloaded=True, 
+                message="Rootfs downloaded"
+            ))
+        else:
+            # Si le téléchargement échoue, on ajoute un objet RootfsDownloadResponse avec un message d'erreur
+            rootfs_download_list.append(RootfsDownloadResponse(
+                rootfs_base_path_on_host=rootfs_path, 
+                rootfs_url=rootfs.rootfs_url, 
+                downloaded=False, 
+                message="Rootfs not downloaded"
+            ))
+    
+    # Retourner la liste des téléchargements (réussis ou échoués)
+    return rootfs_download_list
