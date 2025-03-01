@@ -8,15 +8,15 @@ from app.main import SessionDep
 def download_rootfs(rootfs_requirements: list[RootfsRequirementsRequest], session: SessionDep) -> list[RootfsDownloadResponse]:
     # Initialisation de la liste vide pour stocker les résultats du téléchargement
     rootfs_download_list = []
-    
+
     for rootfs in rootfs_requirements:
         # Construction du chemin où le rootfs sera sauvegardé
         rootfs_path = os.path.join(rootfs.rootfs_base_path_on_host)
-        print(f"[DEBUG] Rootfs path : {rootfs_path}")
+        print(f"[DEBUG] Lancement du téléchargement")
         
         # Demande HTTP pour télécharger le fichier
         try:
-          response = requests.get(rootfs.rootfs_url)
+          response = requests.get(rootfs.rootfs_url, timeout=5)
         except ConnectionError as e:
            rootfs_download_list.append(RootfsDownloadResponse(
               rootfs_base_path_on_host=rootfs_path, 
@@ -52,6 +52,6 @@ def download_rootfs(rootfs_requirements: list[RootfsRequirementsRequest], sessio
                 downloaded=False, 
                 message="Rootfs not downloaded"
             ))
-    
+    print("[Telechargement terminé]")
     # Retourner la liste des téléchargements (réussis ou échoués)
     return rootfs_download_list

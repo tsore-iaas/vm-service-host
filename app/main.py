@@ -1,23 +1,11 @@
-from dataclasses import dataclass
-from fastapi import FastAPI, HTTPException, Depends, Query
+from typing import Annotated
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import Field, Session, SQLModel, create_engine, select, Relationship
-from typing import Annotated, Optional
-from pydantic import BaseModel
-from prometheus_client.parser import text_string_to_metric_families
+from sqlmodel import Session, SQLModel, create_engine
 
-import os, shutil, subprocess, paramiko, io, json, time, requests, re
-import config.settings
+from app.services.HostService import join_host
 
-# Models
-from app.models.VM import VM
-from app.models.Rootfs import Rootfs
-
-#Importation des Schemas
-from app.schemas.VMConfigResponse import VMConfigResponse
-from app.schemas.VMRequirementsRequest import VMRequirementsRequest
-from app.schemas.RootfsRequirementsRequest import RootfsRequirementsRequest
-from app.schemas.RootfsDownloadResponse import RootfsDownloadResponse
+import threading
 
 # Database setup
 DATABASE_URL = "sqlite:///./vm.db"
@@ -34,11 +22,20 @@ def get_session():
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
+#Initialisation de firestore
+from google.cloud import firestore
+# Initialize Firestore client
+firestore_db = firestore.Client.from_service_account_json('./config/iaas4firecracker-firebase-adminsdk-fbsvc-73db0f8ffc.json')
+
+def on_startup():
+  thread = threading.Thread(target=join_host)
+  thread.start()
 
 # FastAPI setup
 app = FastAPI()
 #Mise sur pied des évènement
 app.add_event_handler("startup", create_db_and_tables)
+app.add_event_handler("startup", on_startup)
 
 app.add_middleware(
     CORSMiddleware,
@@ -47,13 +44,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-TMP_DIR = "/tmp/firecracker_sockets"
-BASE_DIR = "/tmp/vms"
-SOCKET_PREFIX = "firecracker"
-BRIDGE_NAME = "br0"
-GATEWAY_ADDRESS = "192.168.8.1"
 
 from app.routes.vm import vm_router;
 from app.routes.download import download_router;

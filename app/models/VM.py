@@ -12,3 +12,4 @@ class VM(SQLModel, table=True):
   kernel_path: str
   rootfs_path: str
   iface_net: str
+  metrics_path: str

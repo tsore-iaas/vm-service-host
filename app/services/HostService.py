@@ -1,5 +1,7 @@
 from fastapi import Query
 import requests, re
+import config.settings as config
+
 
 def get_node_exporter_metrics(to_gb: bool = False):
     url = "http://localhost:9100/metrics"
@@ -57,3 +59,19 @@ def get_node_exporter_metrics(to_gb: bool = False):
         }
 
     return metrics
+
+
+def join_host():
+    host_url = "http://" + config.MASTER_IP + ":" + config.MASTER_PORT + "/hosts/join_host"
+    data = {
+        "localisation": config.LOCALISATION,
+        "ip_address" : config.HOST_IP
+    }
+    print("[DEBUG]", host_url)
+    response = requests.post(url=host_url, json=data)
+ 
+    if response.status_code == 200:
+        print("[DEBUG] Cluster rejoins avec succès")
+    else:
+        print("[DEBUG] ", response.text)
+        print("[DEBUG] Problème lors de l'essaie de la jonction avec le cluster")

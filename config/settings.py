@@ -1,3 +1,10 @@
+#Master configuration
+MASTER_IP = "192.168.231.225"
+MASTER_PORT = "8000"
+
+#Host Configuration
+HOST_IP = "192.168.231.67"
+LOCALISATION = "Cameroun"
 
 TMP_DIR = "/tmp/firecracker_sockets"
 BASE_DIR = "/tmp/vms"

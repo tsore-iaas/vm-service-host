@@ -2,3 +2,4 @@ fastapi
 uvicorn[standard]
 sqlmodel
 requests
+google-cloud-firestore

@@ -1,4 +1,4 @@
-from app.main import SessionDep
+from app.main import SessionDep, firestore_db
 from app.schemas.VMRequirementsRequest import VMRequirementsRequest
 from app.schemas.VMConfigResponse import VMConfigResponse
 from fastapi import HTTPException
@@ -6,6 +6,7 @@ from app.models.VM import VM
 
 import os, shutil, subprocess, json, time, paramiko, io
 import config.settings as config
+import threading
 
 def create_vm(vm_requirements: VMRequirementsRequest, session: SessionDep) -> VMConfigResponse:
     #On verifie que l'id n'est pas déjà utilisé
@@ -96,6 +97,11 @@ def create_vm(vm_requirements: VMRequirementsRequest, session: SessionDep) -> VM
         stderr=subprocess.PIPE,
         text=True)
     
+    #Création du pipe pour les metrics
+    metrics_path = os.path.join(vm_dir, "metrics.fifo")
+    subprocess.run(["sudo", "mkfifo", metrics_path], check=True)
+    vm.metrics_path = metrics_path
+    
     # Configuration
     config_path = os.path.join(vm_dir, "vm_config.json")
     print(f"[DEBUG] Chemin config : {config_path}")
@@ -104,7 +110,8 @@ def create_vm(vm_requirements: VMRequirementsRequest, session: SessionDep) -> VM
         "boot-source": {
             "kernel_image_path": str(vm.kernel_path),  # Conversion explicite en string
             "boot_args": "console=ttyS0 reboot=k panic=1 pci=off"
-        },"network-interfaces": [
+        },
+        "network-interfaces": [
             {
                 "iface_id": "eth0",
                 "host_dev_name": vm.iface_net#vm_iface.name
@@ -121,6 +128,9 @@ def create_vm(vm_requirements: VMRequirementsRequest, session: SessionDep) -> VM
         "machine-config": {
             "vcpu_count": vm_requirements.cpu,
             "mem_size_mib": vm_requirements.ram
+        },
+        "metrics":{
+           "metrics_path": vm.metrics_path
         }
     }
 
@@ -147,6 +157,8 @@ def create_vm(vm_requirements: VMRequirementsRequest, session: SessionDep) -> VM
 
     print("[DEBUG] Configuration terminée")
     
+    store_metrics_pthread = threading.Thread(target=save_metrics, args=(vm,))
+    store_metrics_pthread.start()
     print("[DEUG] Démarrage de Firecracker")
     
     return vm_config
@@ -182,3 +194,25 @@ def delete_vm(id: int, session: SessionDep) -> VM:
     session.delete(vm)
     session.commit()
     return vm
+
+def save_metrics(vm: VM) -> None:
+   print("[DEBUG] Envoi de metrics")
+   while True:
+    subprocess.run(["sudo", "curl", "--unix-socket", vm.socket_path, "-i", "-X", "PUT", "http://localhost/actions",
+                    "-d", "{ \"action_type\": \"FlushMetrics\" }"],
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True)
+    print("On entre lire le fichiers")
+    with open(vm.metrics_path, "r") as fifo:
+        while True:
+            body = fifo.readline()
+            print(body, "\n\n\n Test \n\n\n")
+            data = json.loads(body)
+            firestore_db.collection("micro_vm_metrics").document(str(vm.id+time.time())).set(data)
+            print("[DEBUG] Metrics envoyé avec succès")
+            stat = os.fstat(fifo.fileno())
+            if stat.st_size == 0:
+                break
+    time.sleep(5)
