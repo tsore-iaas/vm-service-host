@@ -62,7 +62,7 @@ def get_node_exporter_metrics(to_gb: bool = False):
 
 
 def join_host():
-    host_url = "http://" + config.MASTER_IP + ":" + config.MASTER_PORT + "/hosts/join_host"
+    host_url = "http://" + config.MASTER_IP + ":" + config.MASTER_PORT + "/hosts/"
     data = {
         "localisation": config.LOCALISATION,
         "ip_address" : config.HOST_IP

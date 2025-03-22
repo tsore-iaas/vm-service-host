@@ -209,9 +209,12 @@ def save_metrics(vm: VM) -> None:
         while True:
             body = fifo.readline()
             print(body, "\n\n\n Test \n\n\n")
-            data = json.loads(body)
-            firestore_db.collection("micro_vm_metrics").document(str(vm.id+time.time())).set(data)
-            print("[DEBUG] Metrics envoyé avec succès")
+            try:
+                data = json.loads(body)
+                firestore_db.collection("micro_vm_metrics").document(str(vm.id+time.time())).set(data)
+                print("[DEBUG] Metrics envoyé avec succès")
+            except json.JSONDecodeError:
+                print("[DEBUG] Erreur de parsing JSON, ignorée")
             stat = os.fstat(fifo.fileno())
             if stat.st_size == 0:
                 break
