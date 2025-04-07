@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, SQLModel, create_engine
 
-from app.services.HostService import join_host
+from app.services.HostService import join_host, init_host
 
 import threading
 
@@ -34,6 +34,7 @@ def on_startup():
 # FastAPI setup
 app = FastAPI()
 #Mise sur pied des évènement
+app.add_event_handler("startup", init_host)
 app.add_event_handler("startup", create_db_and_tables)
 app.add_event_handler("startup", on_startup)
 

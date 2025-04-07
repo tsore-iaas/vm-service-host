@@ -1,7 +1,17 @@
 from fastapi import Query
-import requests, re
+import requests, re, subprocess
 import config.settings as config
 
+#On installe un bridge pour la connexion au réseau des VM et on le démarre à l'aide du script approprié
+def init_host():
+    print("[DEBUG] Configuration du réseau sur le host")
+    subprocess.run(["sudo", "bash", config.SCRIPTS_FOLDER+"setup-bridge.sh", 
+                    config.HOST_INTERFACE_NAME, config.BRIDGE_NAME ],
+        check=True,  # Lève une exception si le code de retour n'est pas 0
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True)
+    print("[DEBUG] Bridge configuré avec succès")
 
 def get_node_exporter_metrics(to_gb: bool = False):
     url = "http://localhost:9100/metrics"
@@ -64,7 +74,7 @@ def get_node_exporter_metrics(to_gb: bool = False):
 def join_host():
     host_url = "http://" + config.MASTER_IP + ":" + config.MASTER_PORT + "/hosts/"
     data = {
-        "localisation": config.LOCALISATION,
+        "location": config.LOCATION,
         "ip_address" : config.HOST_IP
     }
     print("[DEBUG]", host_url)

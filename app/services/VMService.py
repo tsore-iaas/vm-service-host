@@ -163,7 +163,6 @@ def create_vm(vm_requirements: VMRequirementsRequest, session: SessionDep) -> VM
     
     return vm_config
 
-
 def delete_vm(id: int, session: SessionDep) -> VM:
     vm = session.get(VM, id)
     if not vm:
@@ -204,11 +203,9 @@ def save_metrics(vm: VM) -> None:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True)
-    print("On entre lire le fichiers")
     with open(vm.metrics_path, "r") as fifo:
         while True:
             body = fifo.readline()
-            print(body, "\n\n\n Test \n\n\n")
             try:
                 data = json.loads(body)
                 firestore_db.collection("micro_vm_metrics").document(str(vm.id+time.time())).set(data)
