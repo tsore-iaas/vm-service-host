@@ -1,8 +1,9 @@
+from typing import Literal
 from app.main import SessionDep, firestore_db
 from app.schemas.VMRequirementsRequest import VMRequirementsRequest
 from app.schemas.VMConfigResponse import VMConfigResponse
 from fastapi import HTTPException
-from app.models.VM import VM
+from app.models.VM import VM, VMState
 
 import os, shutil, subprocess, json, time, paramiko, io
 import config.settings as config
@@ -216,3 +217,31 @@ def save_metrics(vm: VM) -> None:
             if stat.st_size == 0:
                 break
     time.sleep(5)
+
+def paused_or_resumed_vm(id: int, state: Literal["Resumed","Paused"], session: SessionDep) -> bool:
+    #On vérifie si la VM existe
+    vm = session.get(VM, id)
+    if not vm:
+        raise HTTPException(status_code=404, detail="VM not found")
+    #On Verifie qu'elle n'est pas déjà dans l'état ou on veut la mettre
+    if vm.state == VMState.PAUSED and state == "Paused":
+        return True
+    elif vm.state == VMState.RUNNING and state == "Resumed":
+        return True
+    
+    socket_path = os.path.join(vm.socket_path)
+   # On mets la VM en pause
+    subprocess.run(["sudo", "bash", config.SCRIPTS_FOLDER+"paused_vm.sh", 
+    socket_path, state],
+    check=True,  # Lève une exception si le code de retour n'est pas 0
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True)
+
+    if state == "Paused":
+        vm.state = VMState.PAUSED
+    elif state == "Resumed":
+        vm.state = VMState.RUNNING
+    session.add(vm)
+    session.commit()
+    return True
