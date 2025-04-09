@@ -10,6 +10,9 @@ import config.settings as config
 import threading
 
 def create_vm(vm_requirements: VMRequirementsRequest, session: SessionDep) -> VMConfigResponse:
+    
+    vm_requirements.rootfs_base_path = os.getcwd() + "/../all_vms/ubuntu-24.04.squashfs.upstream"
+    vm_requirements.kernel_base_path = os.getcwd() + "/../all_vms/vmlinux-5.10.225"
     #On verifie que l'id n'est pas déjà utilisé
     if session.get(VM, vm_requirements.id):
       raise HTTPException(status_code=409, detail="ID already exists")

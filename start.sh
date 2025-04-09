@@ -185,5 +185,6 @@ pip install -r requirement.txt
 
 # Lancement du projet
 echo "Lancement du projet..."
-sudo env "PATH=$PATH" uvicorn app.main:app --host 0.0.0.0
+#sudo env "PATH=$PATH"
+uvicorn app.main:app --host 0.0.0.0
 

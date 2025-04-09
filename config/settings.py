@@ -1,11 +1,11 @@
 import os
 
 #Master configuration
-MASTER_IP = os.environ.get('MASTER_IP', '192.168.8.163')
-MASTER_PORT = os.environ.get('MASTER_PORT', '8000')
+MASTER_IP = os.environ.get('MASTER_IP', 'localhost')
+MASTER_PORT = os.environ.get('MASTER_PORT', '8003')
 
 #Host Configuration
-HOST_IP = os.environ.get('HOST_IP', '192.168.8.163')
+HOST_IP = os.environ.get('HOST_IP', '192.168.8.143')
 LOCATION = os.environ.get('LOCATION', 'Cameroun')
 
 
