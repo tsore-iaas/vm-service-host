@@ -6,6 +6,21 @@ from sqlmodel import Session, SQLModel, create_engine
 from app.services.HostService import join_host, init_host
 
 import threading
+import os
+import sys
+import dotenv
+import pymysql
+import logging
+
+
+# Configurer le logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Charger les variables d'environnement
+dotenv.load_dotenv()
+
+
 
 # Database setup
 DATABASE_URL = "sqlite:///./vm.db"
@@ -49,6 +64,15 @@ app.add_middleware(
 from app.routes.vm import vm_router;
 from app.routes.download import download_router;
 from app.routes.host import host_router;
+# Ajout d'un endpoint de santé pour le service proxy
+
 app.include_router(vm_router)
 app.include_router(download_router)
 app.include_router(host_router)
+
+# Ajout du point d'entrée pour démarrer l'application sur le port spécifié dans .env
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("APP_PORT", 5001))
+    logger.info(f"Démarrage de l'application sur le port {port}...")
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)

@@ -1,4 +1,4 @@
-# IaaS4Firecracker - Service d'Hébergement de Machines Virtuelles
+# VM-Service-Host - Service d'Hébergement de Machines Virtuelles
 
 Ce projet est destiné aux hôtes qui vont héberger des machines virtuelles. Il s'agit d'un service backend permettant la gestion, le déploiement et la supervision des VM, facilitant la communication entre le serveur principal (VM-Service) et les hôtes. Ce README vous guide à travers l'installation, la configuration et l'exécution du service.
 
@@ -25,7 +25,7 @@ Ce projet est destiné aux hôtes qui vont héberger des machines virtuelles. Il
 
 ## Introduction
 
-Le service IaaS4Firecracker est conçu pour être déployé sur des hôtes hébergeant des machines virtuelles. Il permet :
+Le service VM-Service-Host est conçu pour être déployé sur des hôtes hébergeant des machines virtuelles. Il permet :
 
 - La communication et la coordination entre un serveur principal (VM-Service) et plusieurs hôtes.
 - La collecte et l'enregistrement des métriques des VM via l’intégration avec Firebase.
@@ -136,7 +136,7 @@ Pour isoler les dépendances et garantir un environnement propre, utilisez un en
 3. **Installation des dépendances :**
 
    ```sh
-   pip install -r requirements.txt
+   pip install -r requirement.txt
    ```
 
 ---
