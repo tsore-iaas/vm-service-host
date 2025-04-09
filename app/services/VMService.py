@@ -152,6 +152,7 @@ def create_vm(vm_requirements: VMRequirementsRequest, session: SessionDep) -> VM
       print(f"[DEBUG] Erreur Firecracker : {error_output}")
       raise Exception(f"Firecracker startup failed: {error_output}")
 
+    vm.state = VMState.RUNNING
     session.add(vm)
     session.commit()
     session.refresh(vm)
