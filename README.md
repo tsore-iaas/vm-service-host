@@ -148,7 +148,7 @@ Pour lancer le service, il est nécessaire de disposer des droits root, car cert
 Exécutez la commande suivante depuis le dossier parent :
 
 ```sh
-sudo env "PATH=$PATH" uvicorn app.main:app
+sudo env "PATH=$PATH" uvicorn app.main:app --host 0.0.0.0
 ```
 
 Cette commande démarre le serveur, qui écoute les requêtes et gère les communications entre le master et les hôtes.
@@ -227,3 +227,5 @@ Voici une vue d'ensemble de la structure du projet, sans inclure les fichiers `.
 Ce projet est distribué sous licence [...] – veuillez consulter le fichier [LICENSE](./LICENSE) pour plus de détails.
 
 ---
+
+https://cloud-images.ubuntu.com/minimal/daily/noble/current/noble-minimal-cloudimg-amd64.squashfs
