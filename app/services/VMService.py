@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Dict
 from app.main import SessionDep, firestore_db
 from app.schemas.VMRequirementsRequest import VMRequirementsRequest
 from app.schemas.VMConfigResponse import VMConfigResponse
@@ -103,6 +103,7 @@ def create_vm(vm_requirements: VMRequirementsRequest, session: SessionDep) -> VM
     
     #Création du pipe pour les metrics
     metrics_path = os.path.join(vm_dir, "metrics.fifo")
+    #os.remove(metrics_path)
     subprocess.run(["sudo", "mkfifo", metrics_path], check=True)
     vm.metrics_path = metrics_path
     
@@ -115,6 +116,11 @@ def create_vm(vm_requirements: VMRequirementsRequest, session: SessionDep) -> VM
             "kernel_image_path": str(vm.kernel_path),  # Conversion explicite en string
             "boot_args": "console=ttyS0 reboot=k panic=1 pci=off"
         },
+        "balloon": {
+                "amount_mib": 0,
+                "deflate_on_oom": True,
+                "stats_polling_interval_s": 5
+            },
         "network-interfaces": [
             {
                 "iface_id": "eth0",
@@ -199,7 +205,7 @@ def delete_vm(id: int, session: SessionDep) -> VM:
     session.commit()
     return vm
 
-def save_metrics(vm: VM) -> None:
+def save_all_metrics(vm: VM) -> None:
    print("[DEBUG] Envoi de metrics")
    while True:
     subprocess.run(["sudo", "curl", "--unix-socket", vm.socket_path, "-i", "-X", "PUT", "http://localhost/actions",
@@ -213,7 +219,8 @@ def save_metrics(vm: VM) -> None:
             body = fifo.readline()
             try:
                 data = json.loads(body)
-                firestore_db.collection("micro_vm_metrics").document(str(vm.id+time.time())).set(data)
+                
+                firestore_db.collection("micro_vm_metrics").document(str(vm.id)+"_"+str(time.time())).set(data)
                 print("[DEBUG] Metrics envoyé avec succès")
             except json.JSONDecodeError:
                 print("[DEBUG] Erreur de parsing JSON, ignorée")
@@ -249,3 +256,89 @@ def paused_or_resumed_vm(id: int, state: Literal["Resumed","Paused"], session: S
     session.add(vm)
     session.commit()
     return True
+
+def save_utile_metrics(vm: VM) -> None:
+    print("[DEBUG] Envoi de metrics")
+    while True:
+        response = subprocess.run(["sudo", "curl", "--unix-socket", vm.socket_path, "-i", "-X", "GET", "http://localhost/balloon/statistics",
+                                    "-H", "accept: application/json"],
+                                check=True,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                text=True)
+
+        try:
+            data = json.loads(response.stdout)
+            firestore_db.collection("micro_vm_metrics").document(str(vm.id)+"_"+str(time.time())).set(data)
+            print("[DEBUG] Metrics envoyé avec succès")
+        except json.JSONDecodeError:
+            print("[DEBUG] Erreur de parsing JSON, ignorée")
+
+        time.sleep(5)
+
+def save_metrics(vm: VM) -> None:
+    print("[DEBUG] Démarrage de la collecte des métriques combinées")
+
+    response = subprocess.run([
+    "sudo", "curl", "--unix-socket", vm.socket_path, "-X", "PUT",
+    "http://localhost/balloon",
+    "-H", "accept: application/json",
+    "-H", "Content-Type: application/json",
+    "-d", '{\"amount_mib\": 0, \"deflate_on_oom\": true, \"stats_polling_interval_s\": 0}'
+    ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    print(response.stdout)
+    while True:
+        #try:
+            # 1. Flush les metrics (stats générales via le FIFO)
+            subprocess.run([
+                "sudo", "curl", "--unix-socket", vm.socket_path, "-i", "-X", "PUT",
+                "http://localhost/actions", "-d", '{ "action_type": "FlushMetrics" }'
+            ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+            metrics_data: Dict = {}
+
+            # 2. Lire les métriques depuis le FIFO
+            with open(vm.metrics_path, "r") as fifo:
+                while True:
+                    body = fifo.readline()
+                    try:
+                        data = json.loads(body)
+                        metrics_data.update(data)
+                    except json.JSONDecodeError:
+                        print("[DEBUG] Erreur de parsing JSON depuis FIFO, ignorée")
+                    stat = os.fstat(fifo.fileno())
+                    if stat.st_size == 0:
+                        break
+
+            # 3. Récupérer les stats du balloon
+            try:
+                response = subprocess.run([
+                    "sudo", "curl", "--unix-socket", vm.socket_path, "-X", "GET",
+                    "http://localhost/balloon/statistics", "-H", "accept: application/json"
+                ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                print(response.stdout)
+                balloon_data = json.loads(response.stdout)
+                metrics_data.update({"balloon_statistics": balloon_data})
+            except json.JSONDecodeError:
+                print("[DEBUG] Erreur de parsing JSON depuis balloon/statistics, ignorée")
+            #except subprocess.CalledProcessError as e:
+            #    print(f"[DEBUG] Erreur curl GET balloon/statistics : {e}")
+
+            # 4. Ajouter les champs vm_id et timestamp
+            current_time = time.time()
+            metrics_data["vm_id"] = vm.id
+            metrics_data["timestamp"] = current_time
+
+            # 5. Tentative d'envoi vers Firestore
+            try:
+                firestore_db.collection("micro_vm_metrics").document(f"{vm.id}_{current_time}").set(metrics_data)
+                print("[DEBUG] Metrics combinées envoyées avec succès")
+            except Exception as e:
+                print(f"[DEBUG] Erreur de connexion ou d'envoi à Firestore : {e}")
+                print("[DEBUG] Nouvelle tentative dans 5 secondes...")
+
+        #except Exception as e:
+        #    print(f"[DEBUG] Erreur inattendue pendant la collecte des métriques : {e}")
+        #    print("[DEBUG] Le processus continue...")
+
+            time.sleep(5)

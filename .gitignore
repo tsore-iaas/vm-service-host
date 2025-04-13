@@ -1,4 +1,4 @@
-.env/
+env/
 app/vm.db
 app/__pycache__
 config/iaas4firecracker-firebase-adminsdk-fbsvc-73db0f8ffc.json

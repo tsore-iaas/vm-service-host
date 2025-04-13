@@ -3,6 +3,7 @@ uvicorn[standard]
 sqlmodel
 requests
 google-cloud-firestore
+paramiko
 py_eureka_client
 marshmallow-sqlalchemy==0.30.0
 python-dotenv==1.0.0
