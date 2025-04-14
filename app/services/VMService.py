@@ -279,14 +279,6 @@ def save_utile_metrics(vm: VM) -> None:
 def save_metrics(vm: VM) -> None:
     print("[DEBUG] Démarrage de la collecte des métriques combinées")
 
-    response = subprocess.run([
-    "sudo", "curl", "--unix-socket", vm.socket_path, "-X", "PUT",
-    "http://localhost/balloon",
-    "-H", "accept: application/json",
-    "-H", "Content-Type: application/json",
-    "-d", '{\"amount_mib\": 0, \"deflate_on_oom\": true, \"stats_polling_interval_s\": 0}'
-    ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    print(response.stdout)
     while True:
         #try:
             # 1. Flush les metrics (stats générales via le FIFO)
@@ -316,7 +308,7 @@ def save_metrics(vm: VM) -> None:
                     "sudo", "curl", "--unix-socket", vm.socket_path, "-X", "GET",
                     "http://localhost/balloon/statistics", "-H", "accept: application/json"
                 ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                print(response.stdout)
+                #print(response.stdout)
                 balloon_data = json.loads(response.stdout)
                 metrics_data.update({"balloon_statistics": balloon_data})
             except json.JSONDecodeError:
